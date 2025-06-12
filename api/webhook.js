@@ -1,77 +1,96 @@
 const axios = require("axios");
 
-const discordWebhookUrl = process.env.DISCORD_WEBHOOK_URL || "https://discord.com/api/webhooks/your-webhook-url";
+// Discord webhook URL - Environment variable'dan alınır
+const discordWebhookUrl = process.env.DISCORD_WEBHOOK_URL || "https://discord.com/api/webhooks/1377251013395742730/_F3itUGe0uVeoG7C9hGGr0p-vNev_4PJdFaAjeep7V0h-3E4OvoBWCP1qsai-PF92tC8";
 
+// Discord'a mesaj gönderme fonksiyonu
 async function sendToDiscord(message) {
   try {
     await axios.post(discordWebhookUrl, { content: message });
+    console.log("Discord mesajı gönderildi");
   } catch (error) {
-    console.error("Discord'a mesaj gönderilirken hata oluştu:", error.message);
+    console.error("Discord'a mesaj gönderilirken hata:", error.message);
   }
 }
 
 module.exports = async (req, res) => {
-  // CORS ayarları burada...
+  // CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
+  // Preflight requests
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
   }
 
+  // Facebook webhook verification (GET request)
   if (req.method === 'GET') {
     const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "commenttoken";
     const mode = req.query["hub.mode"];
     const token = req.query["hub.verify_token"];
     const challenge = req.query["hub.challenge"];
 
-    console.log("GET isteği geldi:");
-    console.log({ mode, token, challenge });
-
-    await sendToDiscord(`GET isteği geldi. Mode: ${mode}, Token: ${token}`);
-
     if (mode && token && mode === "subscribe" && token === VERIFY_TOKEN) {
-      await sendToDiscord("WEBHOOK DOĞRULANDI");
+      console.log("✅ Facebook webhook doğrulandı");
       res.status(200).send(challenge);
     } else {
-      await sendToDiscord("WEBHOOK DOĞRULANAMADI");
+      console.log("❌ Facebook webhook doğrulanamadı");
       res.status(403).send("Forbidden");
     }
     return;
   }
 
+  // Facebook page events (POST request)
   if (req.method === 'POST') {
     try {
       const body = req.body;
 
-      console.log("POST isteği geldi:");
-      console.log(JSON.stringify(body, null, 2));
-
-      await sendToDiscord(`POST isteği geldi:\n\`\`\`json\n${JSON.stringify(body, null, 2)}\n\`\`\``);
-
+      // Sadece sayfa olaylarını işle
       if (body.object === "page") {
         for (const entry of body.entry) {
+          // Değişiklikleri kontrol et
           if (entry.changes && entry.changes.length > 0) {
-            const event = entry.changes[0];
-
-            if (event.field === "feed" && event.value && event.value.item === "comment") {
-              const commentText = event.value.message;
-              const commenterId = event.value.from ? event.value.from.id : "Bilinmeyen";
-
-              await sendToDiscord(`🔔 **Yeni Facebook Yorumu**\n\n📝 **Yorum:** "${commentText}"\n👤 **Kullanıcı ID:** ${commenterId}\n⏰ **Zaman:** ${new Date().toLocaleString('tr-TR')}`);
+            for (const change of entry.changes) {
+              // Sadece feed değişikliklerini ve yorumları işle
+              if (change.field === "feed" && change.value && change.value.item === "comment") {
+                const comment = change.value;
+                
+                // Yorum bilgilerini al
+                const commentText = comment.message || "Yorum metni bulunamadı";
+                const commenterName = comment.from?.name || "Bilinmeyen kullanıcı";
+                const commenterId = comment.from?.id || "Bilinmeyen ID";
+                const postId = comment.post_id || "Bilinmeyen post";
+                
+                console.log(`📝 Yeni yorum: ${commentText} - ${commenterName}`);
+                
+                // Discord'a gönderilecek mesaj
+                const discordMessage = `🔔 **Yeni Facebook Sayfa Yorumu**\n\n` +
+                  `👤 **Kullanıcı:** ${commenterName}\n` +
+                  `💬 **Yorum:** "${commentText}"\n` +
+                  `🆔 **Kullanıcı ID:** ${commenterId}\n` +
+                  `📄 **Post ID:** ${postId}\n` +
+                  `⏰ **Zaman:** ${new Date().toLocaleString('tr-TR')}`;
+                
+                // Discord'a mesaj gönder
+                await sendToDiscord(discordMessage);
+              }
             }
           }
         }
+        
         res.status(200).json({ status: "EVENT_RECEIVED" });
       } else {
-        res.status(404).json({ error: "Not Found" });
+        res.status(200).json({ status: "NOT_PAGE_EVENT" });
       }
     } catch (error) {
-      console.error("Webhook işleme hatası:", error);
-      await sendToDiscord(`Webhook işleme hatası: ${error.message}`);
+      console.error("❌ Webhook işleme hatası:", error);
       res.status(500).json({ error: "Internal Server Error" });
     }
     return;
   }
 
+  // Desteklenmeyen HTTP method
   res.status(405).json({ error: "Method Not Allowed" });
 };
