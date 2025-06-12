@@ -6,9 +6,9 @@ const PORT = process.env.PORT || 3000;
 
 app.use(bodyParser.json());
 
-// Facebook webhook doğrulama endpoint'i
 app.get("/webhook", (req, res) => {
-  const VERIFY_TOKEN = "sizin_token";
+  console.log("İstek geldi")
+  const VERIFY_TOKEN = "commenttoken";
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
