@@ -19,10 +19,13 @@ module.exports = async (req, res) => {
   }
 
   if (req.method === 'GET') {
-    const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "sizin_token";
+    const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "commenttoken";
     const mode = req.query["hub.mode"];
     const token = req.query["hub.verify_token"];
     const challenge = req.query["hub.challenge"];
+
+    console.log("GET isteği geldi:");
+    console.log({ mode, token, challenge });
 
     await sendToDiscord(`GET isteği geldi. Mode: ${mode}, Token: ${token}`);
 
@@ -39,6 +42,9 @@ module.exports = async (req, res) => {
   if (req.method === 'POST') {
     try {
       const body = req.body;
+
+      console.log("POST isteği geldi:");
+      console.log(JSON.stringify(body, null, 2));
 
       await sendToDiscord(`POST isteği geldi:\n\`\`\`json\n${JSON.stringify(body, null, 2)}\n\`\`\``);
 
