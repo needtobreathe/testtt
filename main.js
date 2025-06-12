@@ -17,6 +17,7 @@ app.get("/webhook", (req, res) => {
     console.log("WEBHOOK DOĞRULANDI");
     res.status(200).send(challenge);
   } else {
+    console.log("WEBHOOK DOĞRULANAMADI")
     res.sendStatus(403);
   }
 });
